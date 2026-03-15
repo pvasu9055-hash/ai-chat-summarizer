@@ -1,447 +1,319 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>ChatApp</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
-        * { margin:0; padding:0; box-sizing:border-box; }
+<title>AI Chat Summarizer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-        body {
-            font-family:'Nunito',sans-serif;
-            height:100vh; display:flex; flex-direction:column;
-            background: linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);
-        }
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
 
-        /* TOP BAR */
-        .topbar {
-            padding:12px 16px;
-            background:rgba(255,255,255,0.08);
-            backdrop-filter:blur(20px);
-            border-bottom:1px solid rgba(255,255,255,0.15);
-            display:flex; align-items:center; gap:12px;
-            flex-shrink:0;
-        }
-        .group-avatar {
-            width:42px; height:42px; border-radius:50%;
-            background:linear-gradient(135deg,#f72585,#7209b7,#3a86ff);
-            display:flex; align-items:center; justify-content:center;
-            font-size:18px; flex-shrink:0;
-        }
-        .group-info { flex:1; }
-        .group-name { color:#fff; font-weight:800; font-size:1rem; }
-        .group-status { color:rgba(255,255,255,0.6); font-size:0.72rem; }
-        .top-actions { display:flex; gap:8px; }
-        .top-btn {
-            width:36px; height:36px; border-radius:50%; border:none;
-            cursor:pointer; font-size:15px;
-            display:flex; align-items:center; justify-content:center;
-            transition:transform 0.2s;
-        }
-        .top-btn:hover { transform:scale(1.1); }
-        .btn-call { background:rgba(72,255,167,0.15); }
-        .btn-video { background:rgba(114,9,183,0.2); }
-        .btn-ai { background:linear-gradient(135deg,#f72585,#7209b7); color:white; font-size:11px; font-weight:800; width:auto; padding:0 12px; border-radius:20px; }
+.header {
+    background: linear-gradient(135deg, #075E54, #128C7E);
+    color: white;
+    padding: 16px 20px;
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
 
-        /* WHO IS TYPING selector */
-        .who-bar {
-            padding:8px 16px;
-            background:rgba(255,255,255,0.05);
-            display:flex; gap:8px; align-items:center;
-            border-bottom:1px solid rgba(255,255,255,0.08);
-            flex-shrink:0;
-        }
-        .who-label { color:rgba(255,255,255,0.5); font-size:0.75rem; }
-        .who-btn {
-            padding:4px 14px; border-radius:20px; border:none;
-            font-size:0.75rem; font-weight:700; cursor:pointer;
-            transition:all 0.2s;
-        }
-        .who-btn.s { background:linear-gradient(135deg,#f72585,#b5179e); color:white; }
-        .who-btn.f { background:linear-gradient(135deg,#3a86ff,#7209b7); color:white; }
-        .who-btn.inactive { background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.4); }
+.status-bar {
+    text-align: center;
+    font-size: 12px;
+    padding: 5px;
+    font-weight: 500;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+}
 
-        /* CHAT AREA */
-        .chat-area {
-            flex:1; overflow-y:auto; padding:12px 10px;
-            display:flex; flex-direction:column; gap:4px;
-        }
-        .chat-area::-webkit-scrollbar { width:3px; }
-        .chat-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.2); border-radius:2px; }
+.main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
 
-        .date-badge { text-align:center; margin:8px 0; }
-        .date-badge span {
-            background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.6);
-            font-size:0.68rem; padding:3px 10px; border-radius:8px;
-            backdrop-filter:blur(10px);
-        }
+.chat-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #ddd;
+}
 
-        .msg-row { display:flex; margin-bottom:2px; }
-        .msg-row.me { justify-content:flex-end; }
-        .msg-row.them { justify-content:flex-start; }
+.chat-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #e5ddd5;
+}
 
-        .bubble {
-            max-width:72%; padding:8px 12px 22px;
-            border-radius:16px; position:relative;
-            font-size:0.88rem; line-height:1.5;
-            word-break:break-word; color:#fff;
-        }
+.message {
+    max-width: 65%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    word-wrap: break-word;
+}
 
-        /* ME = colorful gradient right side */
-        .msg-row.me .bubble {
-            background:linear-gradient(135deg,#f72585,#b5179e,#7209b7);
-            border-bottom-right-radius:4px;
-            box-shadow:0 4px 15px rgba(247,37,133,0.3);
-        }
+.me {
+    background: #dcf8c6;
+    align-self: flex-end;
+    border-bottom-right-radius: 3px;
+}
 
-        /* THEM = blue gradient left side */
-        .msg-row.them .bubble {
-            background:linear-gradient(135deg,#3a86ff,#4361ee,#7209b7);
-            border-bottom-left-radius:4px;
-            box-shadow:0 4px 15px rgba(58,134,255,0.3);
-        }
+.other {
+    background: #ffffff;
+    align-self: flex-start;
+    border-bottom-left-radius: 3px;
+}
 
-        .bubble .time {
-            position:absolute; bottom:5px; right:10px;
-            font-size:0.62rem; color:rgba(255,255,255,0.65);
-        }
-        .msg-row.me .bubble .time::after { content:' ✓✓'; color:#a8ffdb; }
+.message .name {
+    font-size: 12px;
+    font-weight: bold;
+    color: #075E54;
+    margin-bottom: 3px;
+}
 
-        .sender-name {
-            font-size:0.7rem; font-weight:800;
-            margin-bottom:3px; letter-spacing:0.3px;
-        }
-        .msg-row.me .sender-name { color:#ffb3d1; }
-        .msg-row.them .sender-name { color:#b3d4ff; }
+.message .time {
+    font-size: 10px;
+    color: #999;
+    text-align: right;
+    margin-top: 4px;
+}
 
-        .sys-msg {
-            text-align:center; color:rgba(255,255,255,0.4);
-            font-size:0.7rem; margin:6px 0; font-style:italic;
-        }
+.input-area {
+    display: flex;
+    padding: 10px 14px;
+    background: #f0f0f0;
+    gap: 8px;
+    align-items: center;
+    border-top: 1px solid #ddd;
+}
 
-        /* AI SUMMARY */
-        .ai-bubble {
-            background:rgba(255,255,255,0.08);
-            border:1px solid rgba(247,37,133,0.4);
-            backdrop-filter:blur(10px);
-            border-radius:16px; padding:14px 16px;
-            margin:8px 0; color:#fff;
-            font-size:0.82rem; line-height:1.8;
-        }
-        .ai-title {
-            background:linear-gradient(135deg,#f72585,#7209b7);
-            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-            font-weight:800; font-size:0.78rem;
-            text-transform:uppercase; letter-spacing:1px;
-            margin-bottom:8px;
-        }
+.input-area input {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: 24px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    outline: none;
+    background: white;
+}
 
-        /* CALL OVERLAY */
-        .call-overlay {
-            display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-            background:rgba(10,10,30,0.96); z-index:200;
-            flex-direction:column; align-items:center; justify-content:center; gap:20px;
-        }
-        .call-overlay.show { display:flex; }
+.input-area input:focus { border-color: #128C7E; }
 
-        @keyframes pulse-glow {
-            0%{box-shadow:0 0 0 0 rgba(247,37,133,0.6);}
-            70%{box-shadow:0 0 0 25px rgba(247,37,133,0);}
-            100%{box-shadow:0 0 0 0 rgba(247,37,133,0);}
-        }
+.send-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: #25D366;
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
 
-        .call-av {
-            width:110px; height:110px; border-radius:50%;
-            background:linear-gradient(135deg,#f72585,#7209b7);
-            display:flex; align-items:center; justify-content:center;
-            font-size:44px; font-weight:800; color:white;
-            animation:pulse-glow 1.5s infinite;
-        }
-        .call-nm { color:#fff; font-size:1.5rem; font-weight:800; }
-        .call-sub { color:rgba(255,255,255,0.5); font-size:0.9rem; }
-        .call-tmr { color:#f72585; font-size:1.2rem; font-weight:800; display:none; }
-        .call-acts { display:flex; gap:20px; margin-top:12px; }
-        .cact {
-            width:64px; height:64px; border-radius:50%; border:none;
-            cursor:pointer; font-size:24px;
-            display:flex; align-items:center; justify-content:center;
-            transition:transform 0.1s;
-        }
-        .cact:active{transform:scale(0.9);}
-        .cact.end{background:linear-gradient(135deg,#ff0033,#ff4d6d);}
-        .cact.tog{background:rgba(255,255,255,0.1);}
+.send-btn:hover { background: #1ebe5d; }
 
-        /* VIDEO OVERLAY */
-        .vid-overlay {
-            display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-            background:#0a0a1e; z-index:200; flex-direction:column;
-        }
-        .vid-overlay.show { display:flex; }
-        .vid-main { flex:1; display:flex; gap:4px; padding:4px; }
-        .vbox {
-            flex:1; border-radius:16px;
-            display:flex; align-items:center; justify-content:center;
-            flex-direction:column; gap:14px; position:relative;
-        }
-        .vbox.lv { background:linear-gradient(135deg,#1a0533,#2d1b69,#11998e); }
-        .vbox.rv { background:linear-gradient(135deg,#0f0c29,#302b63,#f72585); }
-        .vav {
-            width:90px; height:90px; border-radius:50%;
-            display:flex; align-items:center; justify-content:center;
-            font-size:36px; font-weight:800; color:white;
-        }
-        .vbox.lv .vav { background:linear-gradient(135deg,#f72585,#b5179e); }
-        .vbox.rv .vav { background:linear-gradient(135deg,#3a86ff,#4361ee); }
-        .vnm { color:#fff; font-size:1rem; font-weight:700; }
-        .vlbl {
-            position:absolute; bottom:12px; left:12px;
-            background:rgba(0,0,0,0.5); color:#fff;
-            font-size:0.72rem; padding:3px 10px; border-radius:8px;
-            backdrop-filter:blur(5px);
-        }
-        .vid-ctrls {
-            background:rgba(0,0,0,0.8); padding:14px;
-            display:flex; align-items:center; justify-content:center; gap:16px;
-            flex-shrink:0; backdrop-filter:blur(10px);
-        }
-        .vbtn {
-            width:52px; height:52px; border-radius:50%; border:none;
-            cursor:pointer; font-size:20px; color:white;
-            display:flex; align-items:center; justify-content:center;
-            transition:transform 0.1s;
-        }
-        .vbtn:active{transform:scale(0.9);}
-        .vbtn.end{background:linear-gradient(135deg,#ff0033,#ff4d6d);}
-        .vbtn.tog{background:rgba(255,255,255,0.12);}
+.summary-section {
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+}
 
-        /* INPUT */
-        .input-bar {
-            padding:10px 10px;
-            background:rgba(255,255,255,0.06);
-            backdrop-filter:blur(20px);
-            border-top:1px solid rgba(255,255,255,0.1);
-            display:flex; gap:8px; align-items:center;
-            flex-shrink:0;
-        }
-        .msg-inp {
-            flex:1; background:rgba(255,255,255,0.1);
-            border:1px solid rgba(255,255,255,0.15);
-            border-radius:24px; outline:none;
-            color:#fff; font-size:0.9rem; padding:10px 16px;
-            font-family:'Nunito',sans-serif; resize:none; max-height:80px;
-            backdrop-filter:blur(10px);
-        }
-        .msg-inp::placeholder { color:rgba(255,255,255,0.35); }
-        .send-btn {
-            width:44px; height:44px; border-radius:50%; border:none;
-            background:linear-gradient(135deg,#f72585,#7209b7);
-            cursor:pointer; font-size:16px; color:white;
-            display:flex; align-items:center; justify-content:center;
-            box-shadow:0 4px 15px rgba(247,37,133,0.4);
-            transition:transform 0.1s;
-            flex-shrink:0;
-        }
-        .send-btn:active { transform:scale(0.93); }
+.summary-header {
+    background: #075E54;
+    color: white;
+    padding: 14px 16px;
+    font-size: 15px;
+    font-weight: bold;
+}
 
-        @keyframes popIn { from{opacity:0;transform:translateY(8px) scale(0.95);}to{opacity:1;transform:translateY(0) scale(1);} }
-        .bubble { animation:popIn 0.2s ease-out; }
-    </style>
+.summary-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.summary-empty {
+    text-align: center;
+    color: #aaa;
+    margin-top: 40px;
+    font-size: 14px;
+}
+
+.summary-card {
+    background: #f8fff8;
+    border: 1px solid #c3e6c3;
+    border-left: 4px solid #25D366;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #333;
+}
+
+.summary-card .summary-time {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 6px;
+}
+
+.summarize-btn {
+    margin: 12px;
+    padding: 12px;
+    background: linear-gradient(135deg, #075E54, #128C7E);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.summarize-btn:hover { opacity: 0.9; }
+.summarize-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+</style>
 </head>
 <body>
 
-<!-- VOICE CALL -->
-<div class="call-overlay" id="callOvl">
-    <div class="call-av" id="callAv">S</div>
-    <div class="call-nm" id="callNm"></div>
-    <div class="call-sub" id="callSb">📳 Ringing...</div>
-    <div class="call-tmr" id="callTm">00:00</div>
-    <div class="call-acts">
-        <button class="cact tog" id="muteB" onclick="tMute()">🎤</button>
-        <button class="cact end" onclick="endCall()">📵</button>
-        <button class="cact tog" id="spkB" onclick="tSpk()">🔊</button>
-    </div>
-</div>
+<div class="header">💬 AI Chat Summarizer</div>
+<div class="status-bar" id="status" style="color:#999;">Connecting...</div>
 
-<!-- VIDEO CALL -->
-<div class="vid-overlay" id="vidOvl">
-    <div class="vid-main">
-        <div class="vbox lv">
-            <div class="vav">S</div>
-            <div class="vnm">Srivasu</div>
-            <div class="vlbl">Srivasu ✨</div>
-        </div>
-        <div class="vbox rv">
-            <div class="vav">F</div>
-            <div class="vnm">Friend</div>
-            <div class="vlbl">Friend 💙</div>
+<div class="main">
+    <div class="chat-section">
+        <div id="chatBox" class="chat-box"></div>
+        <div class="input-area">
+            <input id="messageInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()">
+            <button class="send-btn" onclick="sendMessage()">&#10148;</button>
         </div>
     </div>
-    <div class="vid-ctrls">
-        <button class="vbtn tog" id="vMic" onclick="tvMic()">🎤</button>
-        <button class="vbtn tog" id="vCam" onclick="tvCam()">📷</button>
-        <button class="vbtn end" onclick="endVid()">📵</button>
-        <button class="vbtn tog" id="vSpk" onclick="tvSpk()">🔊</button>
+
+    <div class="summary-section">
+        <div class="summary-header">🤖 AI Summary</div>
+        <div id="summaryBox" class="summary-box">
+            <div class="summary-empty">Send messages and click<br><b>Summarize</b> to get a summary!</div>
+        </div>
+        <button class="summarize-btn" id="sumBtn" onclick="getSummary()">✨ Summarize Chat</button>
     </div>
 </div>
 
-<!-- TOPBAR -->
-<div class="topbar">
-    <div class="group-avatar">💬</div>
-    <div class="group-info">
-        <div class="group-name">Project Chat ✨</div>
-        <div class="group-status" id="onlineStatus">Srivasu & Friend · online</div>
-    </div>
-    <div class="top-actions">
-        <button class="top-btn btn-call" onclick="startCall('Srivasu','Friend')" title="Voice Call">📞</button>
-        <button class="top-btn btn-video" onclick="startVid()" title="Video Call">📹</button>
-        <button class="top-btn btn-ai" id="aiBtn" onclick="doAI()">🤖 AI</button>
-    </div>
-</div>
-
-<!-- WHO IS SENDING -->
-<div class="who-bar">
-    <span class="who-label">Sending as:</span>
-    <button class="who-btn s" id="btnS" onclick="setWho('S')">💖 Srivasu</button>
-    <button class="who-btn f inactive" id="btnF" onclick="setWho('F')">💙 Friend</button>
-</div>
-
-<!-- MESSAGES -->
-<div class="chat-area" id="chatArea">
-    <div class="date-badge"><span>TODAY</span></div>
-</div>
-
-<!-- INPUT -->
-<div class="input-bar">
-  <textarea class="msg-inp" id="msgInp" placeholder="Type a message..." rows="1"
-            onkeydown="hKey(event)" oninput="aRes(this)"></textarea>
-    <button class="send-btn" onclick="doSend()">➤</button>
-</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
 
 <script>
-    let sc=null, who='S', ci=null, cs=0, muted=false, spk=true;
+let username = prompt("Enter your name");
+if (!username || username.trim() === "") username = "User";
 
-    function connect(){
-        const s=new SockJS('/ws');
-        sc=Stomp.over(s); sc.debug=null;
-        sc.connect({},()=>{
-            sc.subscribe('/topic/messages',m=>{
-                const d=JSON.parse(m.body);
-                addBubble(d.sender, d.text, d.who===who?'me':'them');
-            });
+let stompClient = null;
+let allMessages = [];
+
+function getTime() {
+    let now = new Date();
+    return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+}
+
+function connect() {
+    let socket = new SockJS('/ws');
+    stompClient = Stomp.over(socket);
+    stompClient.debug = null;
+
+    stompClient.connect({}, function(frame) {
+        document.getElementById("status").innerText = "Connected as " + username;
+        document.getElementById("status").style.color = "green";
+
+        stompClient.subscribe('/topic/messages', function(message) {
+            let data = JSON.parse(message.body);
+            showMessage(data.sender, data.content, data.sender === username);
+            allMessages.push(data.sender + ": " + data.content);
         });
-    }
-    connect();
 
-    function setWho(w){
-        who=w;
-        document.getElementById('btnS').className='who-btn s'+(w==='S'?'':' inactive');
-        document.getElementById('btnF').className='who-btn f'+(w==='F'?'':' inactive');
-        document.getElementById('msgInp').placeholder=w==='S'?'Srivasu: type here...':'Friend: type here...';
-    }
+    }, function(error) {
+        document.getElementById("status").innerText = "Disconnected. Retrying...";
+        document.getElementById("status").style.color = "red";
+        setTimeout(connect, 3000);
+    });
+}
 
-    const gt=()=>new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    const sd=()=>{const e=document.getElementById('chatArea');setTimeout(()=>e.scrollTop=e.scrollHeight,50);};
-    const esc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    function aRes(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,80)+'px';}
-    function hKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}}
+function sendMessage() {
+    let input = document.getElementById("messageInput");
+    let message = input.value.trim();
+    if (message === "") return;
 
-    function doSend(){
-        const inp=document.getElementById('msgInp');
-        const txt=inp.value.trim(); if(!txt||!sc)return;
-        const name=who==='S'?'Srivasu':'Friend';
-        sc.send("/app/sendMessage",{},JSON.stringify({sender:name,who:who,text:txt}));
-        inp.value=''; inp.style.height='auto';
+    if (stompClient && stompClient.connected) {
+        stompClient.send("/app/sendMessage", {}, JSON.stringify({
+            sender: username,
+            content: message
+        }));
+    } else {
+        showMessage(username, message, true);
+        allMessages.push(username + ": " + message);
     }
+    input.value = "";
+}
 
-    function addBubble(sender,text,type){
-        const c=document.getElementById('chatArea');
-        const row=document.createElement('div');
-        row.className=`msg-row ${type}`;
-        row.innerHTML=`<div class="bubble">
-      <div class="sender-name">${esc(sender)}</div>
-      ${esc(text)}
-      <span class="time">${gt()}</span>
-    </div>`;
-        c.appendChild(row); sd();
-    }
+function showMessage(sender, content, isMe) {
+    let chat = document.getElementById("chatBox");
+    let div = document.createElement("div");
+    div.className = "message " + (isMe ? "me" : "other");
+    div.innerHTML = '<div class="name">' + sender + '</div>' + content + '<div class="time">' + getTime() + '</div>';
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+}
 
-    function sysMsg(txt){
-        const c=document.getElementById('chatArea');
-        const d=document.createElement('div');
-        d.className='sys-msg'; d.textContent=txt;
-        c.appendChild(d); sd();
+function getSummary() {
+    if (allMessages.length === 0) {
+        alert("No messages to summarize yet!");
+        return;
     }
+    let btn = document.getElementById("sumBtn");
+    btn.disabled = true;
+    btn.innerText = "Summarizing...";
 
-    // VOICE CALL
-    function startCall(caller,receiver){
-        document.getElementById('callAv').textContent=caller[0];
-        document.getElementById('callNm').textContent=`${caller} → ${receiver}`;
-        document.getElementById('callSb').textContent='📳 Ringing...';
-        document.getElementById('callTm').style.display='none';
-        document.getElementById('callOvl').classList.add('show');
-        sysMsg(`📞 ${caller} calling ${receiver}...`);
-        setTimeout(()=>{
-            document.getElementById('callSb').textContent='🟢 Connected';
-            document.getElementById('callTm').style.display='block';
-            cs=0;
-            ci=setInterval(()=>{
-                cs++;
-                const m=String(Math.floor(cs/60)).padStart(2,'0');
-                const s=String(cs%60).padStart(2,'0');
-                document.getElementById('callTm').textContent=`${m}:${s}`;
-            },1000);
-            sysMsg('📞 Call connected!');
-        },2000);
-    }
+    fetch("/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: allMessages.join("\n")
+    })
+    .then(res => res.text())
+    .then(data => {
+        let box = document.getElementById("summaryBox");
+        box.innerHTML = "";
+        let card = document.createElement("div");
+        card.className = "summary-card";
+        card.innerHTML = '<div class="summary-time">Generated at ' + getTime() + ' — ' + allMessages.length + ' messages</div>' + data.replace(/\n/g, '<br>');
+        box.appendChild(card);
+        btn.disabled = false;
+        btn.innerText = "✨ Summarize Chat";
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerText = "✨ Summarize Chat";
+    });
+}
 
-    function endCall(){
-        clearInterval(ci);
-        const t=document.getElementById('callTm').textContent;
-        document.getElementById('callOvl').classList.remove('show');
-        sysMsg(`📵 Call ended · ${t}`);
-    }
-
-    function tMute(){muted=!muted;document.getElementById('muteB').textContent=muted?'🔇':'🎤';}
-    function tSpk(){spk=!spk;document.getElementById('spkB').textContent=spk?'🔊':'🔈';}
-
-    function startVid(){
-        document.getElementById('vidOvl').classList.add('show');
-        sysMsg('📹 Video call started');
-    }
-    function endVid(){
-        document.getElementById('vidOvl').classList.remove('show');
-        sysMsg('📹 Video call ended');
-    }
-    function tvMic(){const b=document.getElementById('vMic');b.textContent=b.textContent==='🎤'?'🔇':'🎤';}
-    function tvCam(){const b=document.getElementById('vCam');b.textContent=b.textContent==='📷'?'🚫':'📷';}
-    function tvSpk(){const b=document.getElementById('vSpk');b.textContent=b.textContent==='🔊'?'🔈':'🔊';}
-
-    // AI
-    async function doAI(){
-        const btn=document.getElementById('aiBtn');
-        btn.disabled=true; btn.textContent='⏳';
-        const bubbles=document.querySelectorAll('.bubble');
-        let chat='';
-        bubbles.forEach(b=>{
-            const nm=b.querySelector('.sender-name');
-            let txt='';
-            b.childNodes.forEach(n=>{if(n.nodeType===3)txt+=n.textContent.trim();});
-            if(txt&&nm)chat+=`${nm.textContent}: ${txt}\n`;
-        });
-        try{
-            const res=await fetch('/summarize',{method:'POST',headers:{'Content-Type':'text/plain'},body:chat});
-            const sum=await res.text();
-            const c=document.getElementById('chatArea');
-            const el=document.createElement('div');
-            el.className='ai-bubble';
-            el.innerHTML=`<div class="ai-title">🤖 AI Summary</div>${esc(sum).replace(/\n/g,'<br>')}`;
-            c.appendChild(el); sd();
-        }catch(e){alert('Error: '+e.message);}
-        btn.disabled=false; btn.textContent='🤖 AI';
-    }
+connect();
 </script>
 </body>
 </html>
