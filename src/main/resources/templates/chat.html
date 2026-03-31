@@ -1,319 +1,842 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>AI Chat Summarizer</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+    <title>AI Chat Summarizer</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface2: #21262d;
+            --border: #30363d;
+            --accent: #00d4aa;
+            --accent2: #7c3aed;
+            --accent3: #f59e0b;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --me-bg: #1a3a2a;
+            --me-border: #00d4aa40;
+            --other-bg: #1c2128;
+            --other-border: #30363d;
+            --danger: #f85149;
+            --success: #3fb950;
+        }
 
-body {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    background: #f0f2f5;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-}
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-.header {
-    background: linear-gradient(135deg, #075E54, #128C7E);
-    color: white;
-    padding: 16px 20px;
-    font-size: 20px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-.status-bar {
-    text-align: center;
-    font-size: 12px;
-    padding: 5px;
-    font-weight: 500;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
-}
+        /* HEADER */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+        }
 
-.main {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-}
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
 
-.chat-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid #ddd;
-}
+        .logo {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
 
-.chat-box {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: #e5ddd5;
-}
+        .header-title {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
 
-.message {
-    max-width: 65%;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 14px;
-    line-height: 1.5;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
-    word-wrap: break-word;
-}
+        .header-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
 
-.me {
-    background: #dcf8c6;
-    align-self: flex-end;
-    border-bottom-right-radius: 3px;
-}
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
-.other {
-    background: #ffffff;
-    align-self: flex-start;
-    border-bottom-left-radius: 3px;
-}
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
 
-.message .name {
-    font-size: 12px;
-    font-weight: bold;
-    color: #075E54;
-    margin-bottom: 3px;
-}
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #555;
+            transition: background 0.3s;
+        }
 
-.message .time {
-    font-size: 10px;
-    color: #999;
-    text-align: right;
-    margin-top: 4px;
-}
+        .status-dot.connected { background: var(--success); box-shadow: 0 0 6px var(--success); animation: pulse-dot 2s infinite; }
+        .status-dot.disconnected { background: var(--danger); }
 
-.input-area {
-    display: flex;
-    padding: 10px 14px;
-    background: #f0f0f0;
-    gap: 8px;
-    align-items: center;
-    border-top: 1px solid #ddd;
-}
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
 
-.input-area input {
-    flex: 1;
-    padding: 12px 16px;
-    border-radius: 24px;
-    border: 1px solid #ccc;
-    font-size: 14px;
-    outline: none;
-    background: white;
-}
+        .online-count {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
 
-.input-area input:focus { border-color: #128C7E; }
+        .online-count span {
+            color: var(--accent);
+            font-weight: 600;
+        }
 
-.send-btn {
-    width: 44px;
-    height: 44px;
-    border: none;
-    background: #25D366;
-    color: white;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
+        /* MAIN */
+        .main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
 
-.send-btn:hover { background: #1ebe5d; }
+        /* CHAT SECTION */
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            min-width: 0;
+        }
 
-.summary-section {
-    width: 320px;
-    display: flex;
-    flex-direction: column;
-    background: #fff;
-}
+        .chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: var(--bg);
+        }
 
-.summary-header {
-    background: #075E54;
-    color: white;
-    padding: 14px 16px;
-    font-size: 15px;
-    font-weight: bold;
-}
+        .chat-box::-webkit-scrollbar { width: 4px; }
+        .chat-box::-webkit-scrollbar-track { background: transparent; }
+        .chat-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
-.summary-box {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-}
+        /* DATE DIVIDER */
+        .date-divider {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            padding: 8px 0;
+            position: relative;
+        }
+        .date-divider::before {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; top: 50%;
+            height: 1px;
+            background: var(--border);
+            z-index: 0;
+        }
+        .date-divider span {
+            background: var(--bg);
+            padding: 0 10px;
+            position: relative;
+            z-index: 1;
+        }
 
-.summary-empty {
-    text-align: center;
-    color: #aaa;
-    margin-top: 40px;
-    font-size: 14px;
-}
+        /* MESSAGES */
+        .message {
+            max-width: 68%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            font-size: 14px;
+            line-height: 1.55;
+            word-wrap: break-word;
+            animation: msgIn 0.2s ease;
+            border: 1px solid transparent;
+            position: relative;
+        }
 
-.summary-card {
-    background: #f8fff8;
-    border: 1px solid #c3e6c3;
-    border-left: 4px solid #25D366;
-    border-radius: 10px;
-    padding: 12px 14px;
-    margin-bottom: 12px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: #333;
-}
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
 
-.summary-card .summary-time {
-    font-size: 11px;
-    color: #999;
-    margin-bottom: 6px;
-}
+        .me {
+            background: var(--me-bg);
+            border-color: var(--me-border);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
 
-.summarize-btn {
-    margin: 12px;
-    padding: 12px;
-    background: linear-gradient(135deg, #075E54, #128C7E);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-}
+        .other {
+            background: var(--other-bg);
+            border-color: var(--other-border);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
 
-.summarize-btn:hover { opacity: 0.9; }
-.summarize-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .message .name {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.3px;
+        }
 
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
-</style>
+        .me .name { color: var(--accent3); }
+
+        .message .time {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-align: right;
+            margin-top: 5px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* TYPING INDICATOR */
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            background: var(--other-bg);
+            border: 1px solid var(--other-border);
+            border-radius: 14px;
+            border-bottom-left-radius: 4px;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--text-muted);
+            animation: msgIn 0.2s ease;
+        }
+
+        .typing-indicator.show { display: block; }
+
+        .typing-dots {
+            display: inline-flex;
+            gap: 3px;
+            align-items: center;
+            margin-left: 4px;
+        }
+
+        .typing-dots span {
+            width: 5px;
+            height: 5px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); }
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: var(--text-muted);
+            font-size: 14px;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .empty-state .emoji { font-size: 40px; margin-bottom: 4px; }
+        .empty-state strong { color: var(--text); font-size: 16px; }
+
+        /* INPUT AREA */
+        .input-area {
+            display: flex;
+            padding: 12px 16px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            gap: 8px;
+            align-items: center;
+        }
+
+        .input-wrap {
+            flex: 1;
+            position: relative;
+        }
+
+        .input-area input {
+            width: 100%;
+            padding: 11px 40px 11px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-size: 14px;
+            font-family: 'DM Sans', sans-serif;
+            outline: none;
+            background: var(--surface2);
+            color: var(--text);
+            transition: border-color 0.2s;
+        }
+
+        .input-area input::placeholder { color: var(--text-muted); }
+        .input-area input:focus { border-color: var(--accent); }
+
+        .char-count {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            pointer-events: none;
+        }
+
+        .send-btn {
+            width: 42px;
+            height: 42px;
+            border: none;
+            background: linear-gradient(135deg, var(--accent), #00b894);
+            color: #000;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.15s, opacity 0.15s;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .send-btn:hover { transform: scale(1.05); }
+        .send-btn:active { transform: scale(0.95); }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* MSG COUNT BAR */
+        .msg-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 16px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .msg-bar span { color: var(--accent); font-weight: 600; }
+
+        .clear-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            transition: all 0.15s;
+        }
+
+        .clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+        /* SUMMARY SECTION */
+        .summary-section {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            flex-shrink: 0;
+        }
+
+        .summary-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .summary-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .ai-badge {
+            font-size: 10px;
+            background: linear-gradient(135deg, var(--accent2), #9f67ff);
+            color: white;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .history-count {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .summary-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .summary-box::-webkit-scrollbar { width: 4px; }
+        .summary-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        .summary-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 10px;
+            color: var(--text-muted);
+            font-size: 13px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .summary-empty .e { font-size: 32px; }
+
+        .summary-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent2);
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.65;
+            color: var(--text);
+            animation: msgIn 0.3s ease;
+        }
+
+        .summary-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .summary-meta .tag {
+            background: var(--accent2)22;
+            color: var(--accent2);
+            border: 1px solid var(--accent2)44;
+            padding: 1px 7px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        /* LOADING SKELETON */
+        .summary-loading {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .skeleton-line {
+            height: 10px;
+            background: var(--border);
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+        .skeleton-line:last-child { width: 60%; margin-bottom: 0; }
+
+        /* SUMMARIZE BTN */
+        .summarize-btn {
+            margin: 12px;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--accent2), #9f67ff);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            transition: opacity 0.2s, transform 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .summarize-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .summarize-btn:active { transform: translateY(0); }
+        .summarize-btn:disabled { background: var(--surface2); color: var(--text-muted); cursor: not-allowed; transform: none; border: 1px solid var(--border); }
+
+        /* TOAST */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(60px);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: transform 0.3s ease;
+            z-index: 999;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+    </style>
 </head>
 <body>
 
-<div class="header">💬 AI Chat Summarizer</div>
-<div class="status-bar" id="status" style="color:#999;">Connecting...</div>
-
-<div class="main">
-    <div class="chat-section">
-        <div id="chatBox" class="chat-box"></div>
-        <div class="input-area">
-            <input id="messageInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()">
-            <button class="send-btn" onclick="sendMessage()">&#10148;</button>
+<div class="header">
+    <div class="header-left">
+        <div class="logo">💬</div>
+        <div>
+            <div class="header-title">AI Chat Summarizer</div>
+            <div class="header-subtitle">Context-Enhanced Messaging Platform</div>
         </div>
     </div>
-
-    <div class="summary-section">
-        <div class="summary-header">🤖 AI Summary</div>
-        <div id="summaryBox" class="summary-box">
-            <div class="summary-empty">Send messages and click<br><b>Summarize</b> to get a summary!</div>
+    <div class="header-right">
+        <div class="online-count">👥 <span id="onlineCount">1</span> online</div>
+        <div class="status-pill">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Connecting...</span>
         </div>
-        <button class="summarize-btn" id="sumBtn" onclick="getSummary()">✨ Summarize Chat</button>
     </div>
 </div>
+
+<div class="main">
+    <!-- CHAT -->
+    <div class="chat-section">
+        <div id="chatBox" class="chat-box">
+            <div class="empty-state" id="emptyState">
+                <div class="emoji">💬</div>
+                <strong>No messages yet</strong>
+                <div>Start chatting and use AI to summarize your conversation!</div>
+            </div>
+            <div class="typing-indicator" id="typingIndicator">
+                Someone is typing<span class="typing-dots"><span></span><span></span><span></span></span>
+            </div>
+        </div>
+
+        <div class="msg-bar">
+            <div><span id="msgCount">0</span> messages in chat</div>
+            <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+        </div>
+
+        <div class="input-area">
+            <div class="input-wrap">
+                <input id="messageInput"
+                       placeholder="Type a message... (Enter to send)"
+                       maxlength="500"
+                       oninput="handleInput(this)"
+                       onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }">
+                <span class="char-count" id="charCount">0/500</span>
+            </div>
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">➤</button>
+        </div>
+    </div>
+
+    <!-- SUMMARY -->
+    <div class="summary-section">
+        <div class="summary-header">
+            <div class="summary-header-left">
+                🤖 AI Summary
+                <span class="ai-badge">NLP</span>
+            </div>
+            <span class="history-count" id="historyCount">0 summaries</span>
+        </div>
+
+        <div id="summaryBox" class="summary-box">
+            <div class="summary-empty">
+                <div class="e">🧠</div>
+                <strong>No summaries yet</strong>
+                <div>Send some messages then click <b>Summarize</b> to generate an AI summary</div>
+            </div>
+        </div>
+
+        <button class="summarize-btn" id="sumBtn" onclick="getSummary()">
+            ✨ Summarize Chat
+        </button>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
 
 <script>
-let username = prompt("Enter your name");
-if (!username || username.trim() === "") username = "User";
+    // ─── STATE ───────────────────────────────────────
+    let username = prompt("Enter your name:") || "User";
+    username = username.trim() || "User";
 
-let stompClient = null;
-let allMessages = [];
+    let stompClient = null;
+    let allMessages = [];
+    let summaryCount = 0;
+    let messageCount = 0;
+    let typingTimer = null;
+    let onlineUsers = new Set([username]);
 
-function getTime() {
-    let now = new Date();
-    return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-}
-
-function connect() {
-    let socket = new SockJS('/ws');
-    stompClient = Stomp.over(socket);
-    stompClient.debug = null;
-
-    stompClient.connect({}, function(frame) {
-        document.getElementById("status").innerText = "Connected as " + username;
-        document.getElementById("status").style.color = "green";
-
-        stompClient.subscribe('/topic/messages', function(message) {
-            let data = JSON.parse(message.body);
-            showMessage(data.sender, data.content, data.sender === username);
-            allMessages.push(data.sender + ": " + data.content);
-        });
-
-    }, function(error) {
-        document.getElementById("status").innerText = "Disconnected. Retrying...";
-        document.getElementById("status").style.color = "red";
-        setTimeout(connect, 3000);
-    });
-}
-
-function sendMessage() {
-    let input = document.getElementById("messageInput");
-    let message = input.value.trim();
-    if (message === "") return;
-
-    if (stompClient && stompClient.connected) {
-        stompClient.send("/app/sendMessage", {}, JSON.stringify({
-            sender: username,
-            content: message
-        }));
-    } else {
-        showMessage(username, message, true);
-        allMessages.push(username + ": " + message);
+    // ─── UTILS ───────────────────────────────────────
+    function getTime() {
+        let now = new Date();
+        return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     }
-    input.value = "";
-}
 
-function showMessage(sender, content, isMe) {
-    let chat = document.getElementById("chatBox");
-    let div = document.createElement("div");
-    div.className = "message " + (isMe ? "me" : "other");
-    div.innerHTML = '<div class="name">' + sender + '</div>' + content + '<div class="time">' + getTime() + '</div>';
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-}
-
-function getSummary() {
-    if (allMessages.length === 0) {
-        alert("No messages to summarize yet!");
-        return;
+    function showToast(msg, duration = 2500) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), duration);
     }
-    let btn = document.getElementById("sumBtn");
-    btn.disabled = true;
-    btn.innerText = "Summarizing...";
 
-    fetch("/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: allMessages.join("\n")
-    })
-    .then(res => res.text())
-    .then(data => {
-        let box = document.getElementById("summaryBox");
-        box.innerHTML = "";
-        let card = document.createElement("div");
-        card.className = "summary-card";
-        card.innerHTML = '<div class="summary-time">Generated at ' + getTime() + ' — ' + allMessages.length + ' messages</div>' + data.replace(/\n/g, '<br>');
-        box.appendChild(card);
-        btn.disabled = false;
-        btn.innerText = "✨ Summarize Chat";
-    })
-    .catch(err => {
-        btn.disabled = false;
-        btn.innerText = "✨ Summarize Chat";
-    });
-}
+    function updateMsgCount() {
+        document.getElementById('msgCount').textContent = messageCount;
+    }
 
-connect();
+    function updateHistoryCount() {
+        document.getElementById('historyCount').textContent = summaryCount + ' summar' + (summaryCount === 1 ? 'y' : 'ies');
+    }
+
+    // ─── INPUT HANDLER ───────────────────────────────
+    function handleInput(el) {
+        document.getElementById('charCount').textContent = el.value.length + '/500';
+        // Simulate typing indicator for others (demo)
+        simulateTyping();
+    }
+
+    function simulateTyping() {
+        // Only show for demo when there are other "users"
+    }
+
+    // ─── CONNECT ─────────────────────────────────────
+    function connect() {
+        try {
+            let socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            stompClient.debug = null;
+
+            stompClient.connect({}, function(frame) {
+                setStatus(true);
+
+                stompClient.subscribe('/topic/messages', function(message) {
+                    let data = JSON.parse(message.body);
+                    showMessage(data.sender, data.content, data.sender === username);
+                    allMessages.push(data.sender + ': ' + data.content);
+                    messageCount++;
+                    updateMsgCount();
+                    if (document.getElementById('emptyState')) {
+                        document.getElementById('emptyState').remove();
+                    }
+                });
+
+            }, function(error) {
+                setStatus(false);
+                setTimeout(connect, 3000);
+            });
+
+        } catch(e) {
+            setStatus(false);
+        }
+    }
+
+    function setStatus(connected) {
+        const dot = document.getElementById('statusDot');
+        const text = document.getElementById('statusText');
+        if (connected) {
+            dot.className = 'status-dot connected';
+            text.textContent = username;
+        } else {
+            dot.className = 'status-dot disconnected';
+            text.textContent = 'Reconnecting...';
+        }
+    }
+
+    // ─── SEND ─────────────────────────────────────────
+    function sendMessage() {
+        let input = document.getElementById('messageInput');
+        let message = input.value.trim();
+        if (!message) return;
+
+        // Remove empty state
+        let empty = document.getElementById('emptyState');
+        if (empty) empty.remove();
+
+        if (stompClient && stompClient.connected) {
+            stompClient.send("/app/sendMessage", {}, JSON.stringify({
+                sender: username,
+                content: message
+            }));
+        } else {
+            // Offline fallback
+            showMessage(username, message, true);
+            allMessages.push(username + ': ' + message);
+            messageCount++;
+            updateMsgCount();
+            showToast('⚠️ Sent locally (not connected)');
+        }
+
+        input.value = '';
+        document.getElementById('charCount').textContent = '0/500';
+    }
+
+    // ─── SHOW MESSAGE ────────────────────────────────
+    function showMessage(sender, content, isMe) {
+        let chat = document.getElementById('chatBox');
+
+        // Move typing indicator to end (keep it last)
+        let typing = document.getElementById('typingIndicator');
+
+        let div = document.createElement('div');
+        div.className = 'message ' + (isMe ? 'me' : 'other');
+        div.innerHTML =
+            '<div class="name">' + escapeHtml(sender) + '</div>' +
+            escapeHtml(content) +
+            '<div class="time">' + getTime() + '</div>';
+
+        chat.insertBefore(div, typing);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ─── CLEAR CHAT ───────────────────────────────────
+    function clearChat() {
+        if (allMessages.length === 0) { showToast('Nothing to clear!'); return; }
+        if (!confirm('Clear all messages? This cannot be undone.')) return;
+
+        let chat = document.getElementById('chatBox');
+        // Keep typing indicator
+        let typing = document.getElementById('typingIndicator');
+        chat.innerHTML = '';
+        chat.appendChild(typing);
+
+        allMessages = [];
+        messageCount = 0;
+        updateMsgCount();
+        showToast('🗑️ Chat cleared');
+    }
+
+    // ─── SUMMARIZE ────────────────────────────────────
+    function getSummary() {
+        if (allMessages.length === 0) {
+            showToast('⚠️ No messages to summarize!');
+            return;
+        }
+
+        let btn = document.getElementById('sumBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Generating...';
+
+        // Show loading skeleton
+        let box = document.getElementById('summaryBox');
+        let skeleton = document.createElement('div');
+        skeleton.className = 'summary-loading';
+        skeleton.innerHTML = '<div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div>';
+        box.insertBefore(skeleton, box.firstChild);
+
+        fetch("/summarize", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: allMessages.join("\n")
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Server error');
+                return res.text();
+            })
+            .then(data => {
+                skeleton.remove();
+                summaryCount++;
+                updateHistoryCount();
+
+                // Remove empty state in summary if present
+                let empty = box.querySelector('.summary-empty');
+                if (empty) empty.remove();
+
+                let card = document.createElement('div');
+                card.className = 'summary-card';
+                card.innerHTML =
+                    '<div class="summary-meta">' +
+                    '<span class="tag">SUMMARY #' + summaryCount + '</span>' +
+                    '<span>' + getTime() + ' · ' + allMessages.length + ' msgs</span>' +
+                    '</div>' +
+                    data.replace(/\n/g, '<br>');
+
+                box.insertBefore(card, box.firstChild);
+                box.scrollTop = 0;
+
+                btn.disabled = false;
+                btn.innerHTML = '✨ Summarize Chat';
+                showToast('✅ Summary generated!');
+            })
+            .catch(err => {
+                skeleton.remove();
+                btn.disabled = false;
+                btn.innerHTML = '✨ Summarize Chat';
+                showToast('❌ Failed to summarize. Try again.');
+            });
+    }
+
+    // ─── INIT ─────────────────────────────────────────
+    connect();
 </script>
 </body>
 </html>
