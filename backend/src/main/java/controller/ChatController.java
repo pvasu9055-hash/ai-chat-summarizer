@@ -1,25 +1,29 @@
 package com.chat.chatsummarizer.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Controller
 public class ChatController {
 
-    @Value("${groq.api.key}")
+    @Value("${gemini.api.key}")
     private String API_KEY;
+
+    private static final String GEMINI_URL =
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=";
 
     @MessageMapping("/sendMessage")
     @SendTo("/topic/messages")
@@ -27,18 +31,14 @@ public class ChatController {
         return message;
     }
 
-    @GetMapping("/")
-    public String home() {
-        return "chat";
-    }
-
     @PostMapping("/summarize")
     @ResponseBody
     public String summarizeChat(@RequestBody String chatText) {
         try {
-            String prompt = "You are a chat summarizer. Summarize this conversation clearly and concisely in 3-5 sentences. Mention who said what, key topics discussed, and any conclusions or decisions made.\n\nConversation:\n" + chatText;
+            String prompt = "You are a chat summarizer. Summarize this conversation clearly and "
+                    + "concisely in 3-5 sentences. Mention who said what, key topics discussed, and "
+                    + "any conclusions or decisions made.\n\nConversation:\n" + chatText;
 
-            // ✅ Gemini request format
             String requestBody = "{"
                     + "\"contents\": [{"
                     + "\"parts\": [{\"text\": \"" + escapeJson(prompt) + "\"}]"
@@ -47,22 +47,35 @@ public class ChatController {
 
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
+                    .uri(URI.create(GEMINI_URL + API_KEY))
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + API_KEY)
-                    .POST(HttpRequest.BodyPublishers.ofString("{\"model\":\"llama-3.3-70b-versatile\",\"messages\":[{\"role\":\"user\",\"content\":\"" + escapeJson(prompt) + "\"}]}"))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             String body = response.body();
-            // Extract just the summary text
-            int start = body.indexOf("\"content\":\"") + 11;
-            int end = body.indexOf("\"},\"logprobs\"", start);
-            return body.substring(start, end).replace("\\n", "\n");
 
+            if (response.statusCode() != 200) {
+                return "Error generating summary: Gemini API returned " + response.statusCode() + " - " + body;
+            }
+
+            return extractGeminiText(body);
         } catch (Exception e) {
             return "Error generating summary: " + e.getMessage();
         }
+    }
+
+    // Extracts the "text" field from Gemini's response JSON without a full JSON library.
+    private String extractGeminiText(String body) {
+        Pattern pattern = Pattern.compile("\"text\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
+        Matcher matcher = pattern.matcher(body);
+        if (matcher.find()) {
+            String raw = matcher.group(1);
+            return raw.replace("\\n", "\n")
+                    .replace("\\\"", "\"")
+                    .replace("\\\\", "\\");
+        }
+        return "Error generating summary: could not parse Gemini response - " + body;
     }
 
     private String escapeJson(String text) {

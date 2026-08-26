@@ -618,10 +618,15 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
 
 <script>
+    // ─── CONFIG ──────────────────────────────────────
+    // Backend URL is set in config.js
+    const BACKEND_URL = window.BACKEND_URL || "http://localhost:8080";
+
     // ─── STATE ───────────────────────────────────────
     let username = prompt("Enter your name:") || "User";
     username = username.trim() || "User";
@@ -668,7 +673,7 @@
     // ─── CONNECT ─────────────────────────────────────
     function connect() {
         try {
-            let socket = new SockJS('/ws');
+            let socket = new SockJS(BACKEND_URL + '/ws');
             stompClient = Stomp.over(socket);
             stompClient.debug = null;
 
@@ -793,7 +798,7 @@
         skeleton.innerHTML = '<div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div>';
         box.insertBefore(skeleton, box.firstChild);
 
-        fetch("/summarize", {
+        fetch(BACKEND_URL + "/summarize", {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
             body: allMessages.join("\n")
