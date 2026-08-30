@@ -85,7 +85,7 @@ public class ContactController {
                 .collect(Collectors.toList());
     }
 
-    // Accept a contact request -> creates a Conversation between the two users
+    // Accept a contact request -> creates a 1-on-1 Conversation between the two users
     @PostMapping("/accept")
     public Map<String, Object> acceptRequest(@RequestBody Map<String, Object> body) {
         Map<String, Object> result = new HashMap<>();
@@ -103,6 +103,7 @@ public class ContactController {
         contactRequestRepository.save(req);
 
         Conversation conversation = new Conversation();
+        conversation.setGroup(false);
         conversation = conversationRepository.save(conversation);
 
         conversationMemberRepository.save(new ConversationMember(conversation, req.getSender()));
@@ -113,7 +114,47 @@ public class ContactController {
         return result;
     }
 
-    // List my accepted contacts + their conversation IDs
+    // Create a group conversation with multiple contacts
+    @PostMapping("/group/create")
+    public Map<String, Object> createGroup(@RequestBody Map<String, Object> body) {
+        Map<String, Object> result = new HashMap<>();
+
+        String myEmail = (String) body.get("myEmail");
+        String groupName = (String) body.get("groupName");
+        @SuppressWarnings("unchecked")
+        List<String> memberEmails = (List<String>) body.get("memberEmails");
+
+        if (myEmail == null || groupName == null || groupName.isBlank() || memberEmails == null || memberEmails.isEmpty()) {
+            result.put("success", false);
+            result.put("message", "Group name and at least one member are required.");
+            return result;
+        }
+
+        Optional<User> meOpt = userRepository.findByEmail(myEmail);
+        if (meOpt.isEmpty()) {
+            result.put("success", false);
+            result.put("message", "User not found.");
+            return result;
+        }
+
+        Conversation conversation = new Conversation();
+        conversation.setGroup(true);
+        conversation.setName(groupName);
+        conversation = conversationRepository.save(conversation);
+
+        conversationMemberRepository.save(new ConversationMember(conversation, meOpt.get()));
+
+        for (String email : memberEmails) {
+            Optional<User> memberOpt = userRepository.findByEmail(email.trim().toLowerCase());
+            memberOpt.ifPresent(user -> conversationMemberRepository.save(new ConversationMember(conversation, user)));
+        }
+
+        result.put("success", true);
+        result.put("conversationId", conversation.getId());
+        return result;
+    }
+
+    // List my accepted contacts + groups, with their conversation IDs
     @GetMapping("/list")
     public List<Map<String, Object>> myContacts(@RequestParam String myEmail) {
         Optional<User> meOpt = userRepository.findByEmail(myEmail);
@@ -124,17 +165,23 @@ public class ContactController {
         List<ConversationMember> myMemberships = conversationMemberRepository.findByUser(me);
 
         for (ConversationMember cm : myMemberships) {
-            Long convId = cm.getConversation().getId();
-            List<ConversationMember> members = conversationMemberRepository.findByConversationId(convId);
-            for (ConversationMember other : members) {
-                if (!other.getUser().getEmail().equalsIgnoreCase(myEmail)) {
-                    Map<String, Object> m = new HashMap<>();
-                    m.put("conversationId", convId);
-                    m.put("username", other.getUser().getName());
-                    m.put("email", other.getUser().getEmail());
-                    results.add(m);
-                }
+            Conversation conv = cm.getConversation();
+            Map<String, Object> m = new HashMap<>();
+            m.put("conversationId", conv.getId());
+            m.put("isGroup", conv.isGroup());
+
+            if (conv.isGroup()) {
+                m.put("displayName", conv.getName());
+            } else {
+                List<ConversationMember> members = conversationMemberRepository.findByConversationId(conv.getId());
+                String otherName = members.stream()
+                        .filter(mem -> !mem.getUser().getEmail().equalsIgnoreCase(myEmail))
+                        .map(mem -> mem.getUser().getName())
+                        .findFirst()
+                        .orElse("Unknown");
+                m.put("displayName", otherName);
             }
+            results.add(m);
         }
         return results;
     }
