@@ -1,0 +1,55 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Verify Email - AI Chat Summarizer</title>
+<style>
+  body { background:#0d1117; color:#e6edf3; font-family:Arial, sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
+  .card { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:32px; max-width:400px; text-align:center; }
+  h2 { margin-bottom:12px; }
+  p { color:#8b949e; margin-bottom:20px; }
+  a { color:#00d4aa; text-decoration:none; font-weight:600; }
+  .success { color:#3fb950; }
+  .error { color:#f85149; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2 id="status">Verifying...</h2>
+    <p id="message">Please wait while we verify your email.</p>
+    <a href="index.html">Go to Login</a>
+  </div>
+  <script src="config.js"></script>
+  <script>
+    const BACKEND_URL = window.BACKEND_URL || "http://localhost:8080";
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const statusEl = document.getElementById("status");
+    const messageEl = document.getElementById("message");
+
+    if (!token) {
+      statusEl.textContent = "Invalid Link";
+      statusEl.className = "error";
+      messageEl.textContent = "No verification token found in the URL.";
+    } else {
+      fetch(BACKEND_URL + "/verify?token=" + encodeURIComponent(token))
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            statusEl.textContent = "Email Verified!";
+            statusEl.className = "success";
+          } else {
+            statusEl.textContent = "Verification Failed";
+            statusEl.className = "error";
+          }
+          messageEl.textContent = data.message;
+        })
+        .catch(() => {
+          statusEl.textContent = "Error";
+          statusEl.className = "error";
+          messageEl.textContent = "Could not reach the server.";
+        });
+    }
+  </script>
+</body>
+</html>
