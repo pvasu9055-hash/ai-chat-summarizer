@@ -351,6 +351,15 @@ svg { display: block; }
     box-shadow: 0 16px 36px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 8px;
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
+.msg-context-menu {
+    position: fixed; z-index: 5000; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 170px; display: none; font-size: 13px;
+}
+.msg-context-menu.show { display: block; }
+.msg-context-menu .mc-item { padding: 9px 12px; border-radius: 7px; cursor: pointer; color: var(--text); transition: background .12s; }
+.msg-context-menu .mc-item:hover { background: var(--surface3); }
+.msg-context-menu .mc-item.danger { color: var(--danger); }
+.message.deleted { opacity: 0.55; font-style: italic; }
 </style>
 </head>
 <body>
@@ -417,7 +426,10 @@ svg { display: block; }
     </div>
     <div class="me-pill">
       <div class="avatar me-avatar" id="meAvatar">?</div>
-      <span class="me-name" id="meLabel"></span>
+      <div style="display:flex;flex-direction:column;line-height:1.2;">
+        <span class="me-name" id="meLabel"></span>
+        <span style="font-size:10px;color:var(--text-muted);" id="meEmailLabel"></span>
+      </div>
       <button class="icon-btn" onclick="logout()" title="Log out">
         <svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
@@ -440,6 +452,8 @@ svg { display: block; }
           Add
         </div>
       </div>
+
+      <button id="createGroupBtn" onclick="openGroupModal()" style="margin:10px 14px 0;padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12.5px;font-weight:700;cursor:pointer;">+ Create Group</button>
 
       <div class="sidebar-search" id="searchBox" style="display:none;">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -504,6 +518,22 @@ svg { display: block; }
   </div>
 </div>
 
+<div id="groupModalOverlay" style="display:none;position:fixed;inset:0;background:#000000aa;z-index:2000;align-items:center;justify-content:center;">
+  <div style="width:360px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;">
+    <div style="font-weight:800;font-size:15px;margin-bottom:14px;">Create Group</div>
+    <input id="groupNameInput" placeholder="Group name" style="width:100%;padding:10px 12px;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;">
+    <div id="groupMemberList" style="max-height:200px;overflow-y:auto;margin-bottom:14px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="submitGroupCreate()" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#04120e;font-weight:700;cursor:pointer;">Create</button>
+      <button onclick="closeGroupModal()" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-weight:700;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="msg-context-menu" id="msgContextMenu">
+  <div class="mc-item" id="mcDeleteForMe">Delete for me</div>
+  <div class="mc-item danger" id="mcDeleteForEveryone" style="display:none;">Delete for everyone</div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script src="config.js"></script>
@@ -522,6 +552,23 @@ let currentContactName = "";
 let contacts = [];
 let pending = [];
 let lastRenderedSender = null;
+
+const savedEmail = localStorage.getItem("chatapp_email");
+const savedUsername = localStorage.getItem("chatapp_username");
+if (savedEmail) {
+    myEmail = savedEmail;
+    myUsername = savedUsername;
+    document.getElementById("authOverlay").style.display = "none";
+    document.getElementById("app").classList.add("active");
+    document.getElementById("meLabel").textContent = myUsername;
+    document.getElementById("meEmailLabel").textContent = myEmail;
+    const meAv = document.getElementById("meAvatar");
+    meAv.textContent = initialsOf(myUsername);
+    meAv.setAttribute("style", avatarStyle(myUsername));
+    connectSocket();
+    loadContacts();
+    loadPending();
+}
 
 // ===== AVATAR HELPER =====
 function avatarStyle(name) {
@@ -594,9 +641,12 @@ function submitAuth() {
         }
         myEmail = email;
         myUsername = data.name || email;
+        localStorage.setItem("chatapp_email", myEmail);
+        localStorage.setItem("chatapp_username", myUsername);
         document.getElementById("authOverlay").style.display = "none";
         document.getElementById("app").classList.add("active");
         document.getElementById("meLabel").textContent = myUsername;
+        document.getElementById("meEmailLabel").textContent = myEmail;
         const meAv = document.getElementById("meAvatar");
         meAv.textContent = initialsOf(myUsername);
         meAv.setAttribute("style", avatarStyle(myUsername));
@@ -662,7 +712,7 @@ function resendOtp() {
     });
 }
 
-function logout() { location.reload(); }
+function logout() { localStorage.removeItem("chatapp_email"); localStorage.removeItem("chatapp_username"); location.reload(); }
 
 function switchTab(tab) {
     document.getElementById("tabContacts").classList.toggle("active", tab === "contacts");
@@ -704,11 +754,11 @@ function renderContacts() {
     contacts.forEach(c => {
         const row = document.createElement("div");
         row.className = "contact-row" + (c.conversationId === currentConversationId ? " selected" : "");
-        row.onclick = () => openConversation(c.conversationId, c.username, c.email);
+        row.onclick = () => openConversation(c.conversationId, c.displayName, c.isGroup ? "Group chat" : "");
         row.innerHTML =
-            avatarHtml(c.username, 'contact-avatar') +
-            '<div class="contact-info"><div class="contact-name">' + escapeHtml(c.username) + '</div>' +
-            '<div class="contact-email">' + escapeHtml(c.email) + '</div></div>';
+            avatarHtml(c.displayName, 'contact-avatar') +
+            '<div class="contact-info"><div class="contact-name">' + (c.isGroup ? '\u{1F465} ' : '') + escapeHtml(c.displayName) + '</div>' +
+            '<div class="contact-email">' + (c.isGroup ? 'Group chat' : '') + '</div></div>';
         box.appendChild(row);
     });
 }
@@ -814,15 +864,35 @@ function openConversation(conversationId, contactUsername, contactEmail) {
     renderContacts();
     loadMessages(conversationId);
     subscribeToConversation(conversationId);
+    loadCatchUp(conversationId);
+}
+
+function loadCatchUp(conversationId) {
+    fetch(BACKEND_URL + "/catchup/" + conversationId + "?myEmail=" + encodeURIComponent(myEmail))
+        .then(r => r.json())
+        .then(data => {
+            if (!data.hasNew) return;
+            const content = document.getElementById("aiContent");
+            const empty = content.querySelector(".ai-empty");
+            if (empty) empty.remove();
+            const card = document.createElement("div");
+            card.className = "ai-card";
+            card.style.borderLeft = "3px solid var(--accent)";
+            card.innerHTML =
+                '<div class="ai-card-label" style="color:var(--accent);">Catch-up \u2022 ' + data.count + ' new message' + (data.count > 1 ? 's' : '') + '</div>' +
+                '<div>' + escapeHtml(data.summary).replace(/\n/g,'<br>') + '</div>';
+            content.insertBefore(card, content.firstChild);
+        })
+        .catch(() => {});
 }
 
 function loadMessages(conversationId) {
     const box = document.getElementById("chatBox");
     box.innerHTML = "";
     lastRenderedSender = null;
-    fetch(BACKEND_URL + "/messages/" + conversationId)
+    fetch(BACKEND_URL + "/messages/" + conversationId + "?myEmail=" + encodeURIComponent(myEmail))
         .then(r => r.json())
-        .then(msgs => msgs.forEach(m => appendMessage(m.senderUsername, m.content, m.senderEmail === myEmail)))
+        .then(msgs => msgs.forEach(m => appendMessage(m.senderUsername, m.content, m.senderEmail === myEmail, m.messageId, m.senderEmail, !!m.deletedForEveryone)))
         .catch(() => {});
 }
 
@@ -838,7 +908,15 @@ function subscribeToConversation(conversationId) {
     if (currentSub) currentSub.unsubscribe();
     currentSub = stompClient.subscribe("/topic/conversation/" + conversationId, function(message) {
         const data = JSON.parse(message.body);
-        appendMessage(data.senderUsername, data.content, data.senderEmail === myEmail);
+        if (data.type === "delete") {
+            const el = document.querySelector(".message[data-message-id=\"" + data.messageId + "\"]");
+            if (el && data.deletedForEveryone) {
+                el.classList.add("deleted");
+                el.childNodes[0].nodeValue = "This message was deleted";
+            }
+            return;
+        }
+        appendMessage(data.senderUsername, data.content, data.senderEmail === myEmail, data.messageId, data.senderEmail, false);
     });
 }
 
@@ -855,17 +933,31 @@ function sendMessage() {
 }
 
 // Groups consecutive messages from the same sender under one label, WhatsApp/Slack style
-function appendMessage(sender, content, isMe) {
+function appendMessage(sender, content, isMe, messageId, senderEmail, deletedForEveryone) {
     const box = document.getElementById("chatBox");
     const now = new Date();
     const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    const displayContent = deletedForEveryone ? "This message was deleted" : content;
+
+    function makeBubble() {
+        const bubble = document.createElement("div");
+        bubble.className = "message " + (isMe ? "me" : "other") + (deletedForEveryone ? " deleted" : "");
+        bubble.innerHTML = escapeHtml(displayContent) + '<div class="time">' + time + '</div>';
+        if (messageId != null) {
+            bubble.dataset.messageId = messageId;
+            bubble.dataset.senderEmail = senderEmail || "";
+            bubble.addEventListener("contextmenu", (e) => { e.preventDefault(); openMsgMenu(e.clientX, e.clientY, bubble); });
+            let pressTimer;
+            bubble.addEventListener("touchstart", () => { pressTimer = setTimeout(() => { const r = bubble.getBoundingClientRect(); openMsgMenu(r.left + 20, r.top + 10, bubble); }, 500); });
+            bubble.addEventListener("touchend", () => clearTimeout(pressTimer));
+            bubble.addEventListener("touchmove", () => clearTimeout(pressTimer));
+        }
+        return bubble;
+    }
 
     if (lastRenderedSender === sender && box.lastElementChild) {
         const group = box.lastElementChild;
-        const bubble = document.createElement("div");
-        bubble.className = "message " + (isMe ? "me" : "other");
-        bubble.innerHTML = escapeHtml(content) + '<div class="time">' + time + '</div>';
-        group.appendChild(bubble);
+        group.appendChild(makeBubble());
     } else {
         const group = document.createElement("div");
         group.className = "msg-group " + (isMe ? "me-group" : "other-group");
@@ -873,14 +965,42 @@ function appendMessage(sender, content, isMe) {
         label.className = "group-label";
         label.textContent = sender;
         group.appendChild(label);
-        const bubble = document.createElement("div");
-        bubble.className = "message " + (isMe ? "me" : "other");
-        bubble.innerHTML = escapeHtml(content) + '<div class="time">' + time + '</div>';
-        group.appendChild(bubble);
+        group.appendChild(makeBubble());
         box.appendChild(group);
     }
     lastRenderedSender = sender;
     box.scrollTop = box.scrollHeight;
+}
+
+let activeMenuDiv = null;
+function openMsgMenu(x, y, div) {
+    if (div.classList.contains("deleted")) return;
+    activeMenuDiv = div;
+    const menu = document.getElementById("msgContextMenu");
+    document.getElementById("mcDeleteForEveryone").style.display = (div.dataset.senderEmail === myEmail) ? "block" : "none";
+    menu.style.left = x + "px"; menu.style.top = y + "px";
+    menu.classList.add("show");
+    requestAnimationFrame(() => {
+        const r = menu.getBoundingClientRect();
+        if (r.right > window.innerWidth) menu.style.left = (window.innerWidth - r.width - 10) + "px";
+        if (r.bottom > window.innerHeight) menu.style.top = (window.innerHeight - r.height - 10) + "px";
+    });
+}
+function closeMsgMenu() { document.getElementById("msgContextMenu").classList.remove("show"); activeMenuDiv = null; }
+document.addEventListener("click", (e) => { const m = document.getElementById("msgContextMenu"); if (m.classList.contains("show") && !m.contains(e.target)) closeMsgMenu(); });
+document.addEventListener("scroll", closeMsgMenu, true);
+document.getElementById("mcDeleteForMe").onclick = () => { if (activeMenuDiv) deleteMessage(activeMenuDiv.dataset.messageId, false, activeMenuDiv); closeMsgMenu(); };
+document.getElementById("mcDeleteForEveryone").onclick = () => { if (activeMenuDiv) deleteMessage(activeMenuDiv.dataset.messageId, true, activeMenuDiv); closeMsgMenu(); };
+function deleteMessage(messageId, forEveryone, div) {
+    fetch(BACKEND_URL + "/messages/" + messageId + "?myEmail=" + encodeURIComponent(myEmail) + "&forEveryone=" + forEveryone, { method: "DELETE" })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { showToast(data.message || "Could not delete message."); return; }
+            div.classList.add("deleted");
+            div.childNodes[0].nodeValue = "This message was deleted";
+            showToast(forEveryone ? "Deleted for everyone" : "Deleted for you");
+        })
+        .catch(() => showToast("Could not reach server."));
 }
 
 function getSummary() {
@@ -942,6 +1062,41 @@ function getActions() {
             btn.disabled = false; btn.innerHTML = originalHtml;
         })
         .catch(() => { btn.disabled = false; btn.innerHTML = originalHtml; showToast("Failed to extract actions."); });
+}
+
+function openGroupModal() {
+    const list = document.getElementById("groupMemberList");
+    list.innerHTML = contacts.filter(c => !c.isGroup).map(c =>
+        "<label style=\"display:block;padding:6px 0;font-size:13px;\"><input type=\"checkbox\" data-email=\"" + escapeHtml(c.email || c.displayName) + "\"> " + escapeHtml(c.displayName) + "</label>"
+    ).join("");
+    document.getElementById("groupNameInput").value = "";
+    document.getElementById("groupModalOverlay").style.display = "flex";
+}
+
+function closeGroupModal() {
+    document.getElementById("groupModalOverlay").style.display = "none";
+}
+
+function submitGroupCreate() {
+    const groupName = document.getElementById("groupNameInput").value.trim();
+    const checked = [...document.querySelectorAll("#groupMemberList input:checked")].map(cb => cb.dataset.email).filter(Boolean);
+    if (!groupName || checked.length === 0) { showToast("Enter a name and pick at least one member."); return; }
+
+    fetch(BACKEND_URL + "/contacts/group/create", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ myEmail, groupName, memberEmails: checked })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            closeGroupModal();
+            showToast("Group created");
+            loadContacts();
+        } else {
+            showToast(data.message || "Could not create group.");
+        }
+    })
+    .catch(() => showToast("Could not reach server."));
 }
 
 function showToast(msg) {

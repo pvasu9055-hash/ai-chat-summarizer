@@ -14,6 +14,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,9 @@ public class ChatController {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Autowired
+    private ConversationMemberRepository conversationMemberRepository;
+
     @Value("${gemini.api.key}")
     private String API_KEY;
 
@@ -59,6 +64,7 @@ public class ChatController {
         messageRepository.save(message);
 
         Map<String, Object> outgoing = new HashMap<>();
+        outgoing.put("messageId", message.getId());
         outgoing.put("conversationId", conversationId);
         outgoing.put("senderEmail", senderEmail);
         outgoing.put("senderUsername", senderOpt.get().getName());
@@ -70,24 +76,126 @@ public class ChatController {
 
     @GetMapping("/messages/{conversationId}")
     @ResponseBody
-    public List<Map<String, Object>> getMessages(@PathVariable Long conversationId) {
+    public List<Map<String, Object>> getMessages(@PathVariable Long conversationId, @RequestParam String myEmail) {
         return messageRepository.findByConversationIdOrderBySentAtAsc(conversationId)
                 .stream()
+                .filter(m -> !isHiddenFor(m, myEmail))
                 .map(m -> {
                     Map<String, Object> map = new HashMap<>();
+                    map.put("messageId", m.getId());
                     map.put("senderEmail", m.getSender().getEmail());
                     map.put("senderUsername", m.getSender().getName());
-                    map.put("content", m.getContent());
+                    map.put("content", m.isDeletedForEveryone() ? "This message was deleted" : m.getContent());
+                    map.put("deletedForEveryone", m.isDeletedForEveryone());
                     map.put("sentAt", m.getSentAt().toString());
                     return map;
                 })
                 .collect(Collectors.toList());
     }
 
+    @DeleteMapping("/messages/{messageId}")
+    @ResponseBody
+    public Map<String, Object> deleteMessage(@PathVariable Long messageId,
+                                              @RequestParam String myEmail,
+                                              @RequestParam boolean forEveryone) {
+        Map<String, Object> result = new HashMap<>();
+        Optional<Message> msgOpt = messageRepository.findById(messageId);
+
+        if (msgOpt.isEmpty()) {
+            result.put("success", false);
+            result.put("message", "Message not found.");
+            return result;
+        }
+
+        Message message = msgOpt.get();
+
+        if (forEveryone) {
+            if (!message.getSender().getEmail().equalsIgnoreCase(myEmail)) {
+                result.put("success", false);
+                result.put("message", "Only the sender can delete this for everyone.");
+                return result;
+            }
+            message.setDeletedForEveryone(true);
+            messageRepository.save(message);
+
+            Map<String, Object> outgoing = new HashMap<>();
+            outgoing.put("type", "delete");
+            outgoing.put("messageId", messageId);
+            outgoing.put("deletedForEveryone", true);
+            messagingTemplate.convertAndSend(
+                    "/topic/conversation/" + message.getConversation().getId(), outgoing);
+        } else {
+            List<String> hidden = new ArrayList<>(Arrays.asList(message.getHiddenFor().split(",")));
+            hidden.removeIf(String::isBlank);
+            if (!hidden.contains(myEmail)) {
+                hidden.add(myEmail);
+            }
+            message.setHiddenFor(String.join(",", hidden));
+            messageRepository.save(message);
+        }
+
+        result.put("success", true);
+        return result;
+    }
+
+    @GetMapping("/catchup/{conversationId}")
+    @ResponseBody
+    public Map<String, Object> catchUp(@PathVariable Long conversationId, @RequestParam String myEmail) {
+        Map<String, Object> result = new HashMap<>();
+        Optional<Conversation> convOpt = conversationRepository.findById(conversationId);
+        Optional<User> meOpt = userRepository.findByEmail(myEmail);
+
+        if (convOpt.isEmpty() || meOpt.isEmpty()) {
+            result.put("hasNew", false);
+            return result;
+        }
+
+        Optional<ConversationMember> memberOpt =
+                conversationMemberRepository.findByConversationAndUser(convOpt.get(), meOpt.get());
+
+        java.time.LocalDateTime lastReadAt = memberOpt.map(ConversationMember::getLastReadAt)
+                .orElse(java.time.LocalDateTime.now().minusYears(10));
+
+        List<Message> newMessages = messageRepository.findByConversationIdOrderBySentAtAsc(conversationId)
+                .stream()
+                .filter(m -> !m.isDeletedForEveryone())
+                .filter(m -> !isHiddenFor(m, myEmail))
+                .filter(m -> m.getSentAt().isAfter(lastReadAt))
+                .collect(Collectors.toList());
+
+        boolean hasNewFromOthers = newMessages.stream()
+                .anyMatch(m -> !m.getSender().getEmail().equalsIgnoreCase(myEmail));
+
+        if (memberOpt.isPresent()) {
+            memberOpt.get().setLastReadAt(java.time.LocalDateTime.now());
+            conversationMemberRepository.save(memberOpt.get());
+        }
+
+        if (newMessages.isEmpty() || !hasNewFromOthers) {
+            result.put("hasNew", false);
+            return result;
+        }
+
+        String transcript = newMessages.stream()
+                .map(m -> m.getSender().getName() + ": " + m.getContent())
+                .collect(Collectors.joining("\n"));
+
+        result.put("hasNew", true);
+        result.put("count", newMessages.size());
+        result.put("summary", callGeminiSummarize(transcript));
+        return result;
+    }
+
+    private boolean isHiddenFor(Message m, String email) {
+        if (m.getHiddenFor() == null || m.getHiddenFor().isBlank()) return false;
+        return Arrays.asList(m.getHiddenFor().split(",")).contains(email);
+    }
+
     // Builds a "Username: message" transcript for a conversation, for Gemini prompts
     private String buildTranscript(Long conversationId) {
         return messageRepository.findByConversationIdOrderBySentAtAsc(conversationId)
                 .stream()
+                .filter(m -> !m.isDeletedForEveryone())
                 .map(m -> m.getSender().getName() + ": " + m.getContent())
                 .collect(Collectors.joining("\n"));
     }

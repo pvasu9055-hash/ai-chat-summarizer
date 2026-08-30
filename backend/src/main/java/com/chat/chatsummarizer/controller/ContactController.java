@@ -24,7 +24,6 @@ public class ContactController {
     @Autowired
     private ConversationMemberRepository conversationMemberRepository;
 
-    // Search users by username or email (excluding yourself)
     @GetMapping("/search")
     public List<Map<String, Object>> searchUsers(@RequestParam String query, @RequestParam String myEmail) {
         return userRepository.findAll().stream()
@@ -40,7 +39,6 @@ public class ContactController {
                 .collect(Collectors.toList());
     }
 
-    // Send a contact request
     @PostMapping("/request")
     public Map<String, Object> sendRequest(@RequestBody Map<String, String> body) {
         Map<String, Object> result = new HashMap<>();
@@ -67,7 +65,6 @@ public class ContactController {
         return result;
     }
 
-    // List pending requests received by me
     @GetMapping("/pending")
     public List<Map<String, Object>> pendingRequests(@RequestParam String myEmail) {
         Optional<User> meOpt = userRepository.findByEmail(myEmail);
@@ -85,7 +82,6 @@ public class ContactController {
                 .collect(Collectors.toList());
     }
 
-    // Accept a contact request -> creates a 1-on-1 Conversation between the two users
     @PostMapping("/accept")
     public Map<String, Object> acceptRequest(@RequestBody Map<String, Object> body) {
         Map<String, Object> result = new HashMap<>();
@@ -114,7 +110,6 @@ public class ContactController {
         return result;
     }
 
-    // Create a group conversation with multiple contacts
     @PostMapping("/group/create")
     public Map<String, Object> createGroup(@RequestBody Map<String, Object> body) {
         Map<String, Object> result = new HashMap<>();
@@ -142,19 +137,20 @@ public class ContactController {
         conversation.setName(groupName);
         conversation = conversationRepository.save(conversation);
 
-        conversationMemberRepository.save(new ConversationMember(conversation, meOpt.get()));
+        final Conversation savedConversation = conversation;
+
+        conversationMemberRepository.save(new ConversationMember(savedConversation, meOpt.get()));
 
         for (String email : memberEmails) {
             Optional<User> memberOpt = userRepository.findByEmail(email.trim().toLowerCase());
-            memberOpt.ifPresent(user -> conversationMemberRepository.save(new ConversationMember(conversation, user)));
+            memberOpt.ifPresent(user -> conversationMemberRepository.save(new ConversationMember(savedConversation, user)));
         }
 
         result.put("success", true);
-        result.put("conversationId", conversation.getId());
+        result.put("conversationId", savedConversation.getId());
         return result;
     }
 
-    // List my accepted contacts + groups, with their conversation IDs
     @GetMapping("/list")
     public List<Map<String, Object>> myContacts(@RequestParam String myEmail) {
         Optional<User> meOpt = userRepository.findByEmail(myEmail);
